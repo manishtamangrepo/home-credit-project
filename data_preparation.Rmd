@@ -1,0 +1,732 @@
+---
+title: "Data Preparation"
+author: "Manish"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+    embed-resources: true
+execute:
+  include: true
+  eval: true    
+  warning: false
+  message: false
+
+---
+
+
+## Table of Contents
+
+
+### Importing Packages
+
+```{r}
+library(readr)
+library(dplyr)
+```
+
+
+### Task 1
+```{r }
+# Fit step (TRAIN ONLY)
+fit_app_prep <- function(train_df,
+                         nzv_threshold = 0.99,
+                         ext_vars = c("EXT_SOURCE_1","EXT_SOURCE_2","EXT_SOURCE_3")) {
+  stopifnot(is.data.frame(train_df))
+
+  # EXT_SOURCE vars present in data
+  ext_vars <- intersect(ext_vars, names(train_df))
+
+  # Train-only medians for EXT_SOURCE imputation
+  ext_medians <- sapply(ext_vars, function(v) median(train_df[[v]], na.rm = TRUE))
+
+  # Zero variance columns (n_unique <= 1)
+  n_unique <- sapply(train_df, function(x) dplyr::n_distinct(x, na.rm = TRUE))
+  drop_zero_var <- names(n_unique)[n_unique <= 1]
+
+  # Near-zero variance columns: dominant single value proportion > threshold
+  # (matches your EDA logic max(tbl)/sum(tbl))
+  max_prop <- sapply(train_df, function(x) {
+    tbl <- table(x, useNA = "ifany")
+    as.numeric(max(tbl) / sum(tbl))
+  })
+  drop_nzv <- names(max_prop)[max_prop > nzv_threshold]
+
+  # Don't drop TARGET (train-only anyway) or ID columns if you want to keep them
+  protected <- intersect(c("TARGET", "SK_ID_CURR"), names(train_df))
+  drop_cols <- setdiff(unique(c(drop_zero_var, drop_nzv)), protected)
+
+  list(
+    ext_vars    = ext_vars,
+    ext_medians = ext_medians,
+    drop_cols   = drop_cols,
+    nzv_threshold = nzv_threshold
+  )
+}
+
+# Transform step (TRAIN/TEST)
+transform_app <- function(df, prep) {
+  stopifnot(is.data.frame(df))
+  stopifnot(is.list(prep))
+
+  out <- df
+
+  # 1) DAYS_EMPLOYED anomaly -> NA + flag
+  if ("DAYS_EMPLOYED" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        FLAG_DAYS_EMPLOYED_ANOM = ifelse(DAYS_EMPLOYED == 365243, 1L, 0L),
+        DAYS_EMPLOYED = ifelse(DAYS_EMPLOYED == 365243, NA, DAYS_EMPLOYED)
+      )
+  }
+
+  # 2) EXT_SOURCE missing -> train medians + missing flags
+  for (v in prep$ext_vars) {
+    if (v %in% names(out)) {
+      out[[paste0(v, "_MISSING")]] <- ifelse(is.na(out[[v]]), 1L, 0L)
+      out[[v]] <- ifelse(is.na(out[[v]]), prep$ext_medians[[v]], out[[v]])
+    }
+  }
+
+  # 3) Non-positive AMT_INCOME_TOTAL / AMT_CREDIT -> NA + flags
+  if ("AMT_INCOME_TOTAL" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        FLAG_INCOME_NONPOS = ifelse(!is.na(AMT_INCOME_TOTAL) & AMT_INCOME_TOTAL <= 0, 1L, 0L),
+        AMT_INCOME_TOTAL = ifelse(!is.na(AMT_INCOME_TOTAL) & AMT_INCOME_TOTAL <= 0, NA, AMT_INCOME_TOTAL)
+      )
+  }
+
+  if ("AMT_CREDIT" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        FLAG_CREDIT_NONPOS = ifelse(!is.na(AMT_CREDIT) & AMT_CREDIT <= 0, 1L, 0L),
+        AMT_CREDIT = ifelse(!is.na(AMT_CREDIT) & AMT_CREDIT <= 0, NA, AMT_CREDIT)
+      )
+  }
+
+  # 4) Drop zero-var + near-zero-var columns determined from TRAIN
+  cols_to_drop <- intersect(prep$drop_cols, names(out))
+  if (length(cols_to_drop) > 0) {
+    out <- out %>% select(-all_of(cols_to_drop))
+  }
+
+  out
+}
+
+# Apply to your files + expected outputs
+train_raw <- read_csv("application_train.csv", show_col_types = FALSE)
+test_raw  <- read_csv("application_test.csv",  show_col_types = FALSE)
+
+prep <- fit_app_prep(train_raw, nzv_threshold = 0.99)
+
+train_clean <- transform_app(train_raw, prep)
+test_clean  <- transform_app(test_raw, prep)
+
+# ---- Expected output (prints)
+cat("=== Expected output: shapes ===\n")
+cat("Train raw:  ", nrow(train_raw),  "rows x", ncol(train_raw),  "cols\n")
+cat("Train clean:", nrow(train_clean),"rows x", ncol(train_clean),"cols\n")
+cat("Test raw:   ", nrow(test_raw),   "rows x", ncol(test_raw),   "cols\n")
+cat("Test clean: ", nrow(test_clean), "rows x", ncol(test_clean), "cols\n\n")
+
+if ("FLAG_DAYS_EMPLOYED_ANOM" %in% names(train_clean)) {
+  cat("=== Expected output: DAYS_EMPLOYED anomaly counts ===\n")
+  cat("Train anomaly count:", sum(train_clean$FLAG_DAYS_EMPLOYED_ANOM, na.rm = TRUE), "\n")
+  cat("Test anomaly count: ", sum(test_clean$FLAG_DAYS_EMPLOYED_ANOM,  na.rm = TRUE), "\n\n")
+}
+
+missing_flag_cols <- intersect(
+  c("EXT_SOURCE_1_MISSING","EXT_SOURCE_2_MISSING","EXT_SOURCE_3_MISSING"),
+  names(train_clean)
+)
+if (length(missing_flag_cols) > 0) {
+  cat("=== Expected output: EXT_SOURCE missing flag sums (train) ===\n")
+  print(sapply(missing_flag_cols, function(x) sum(train_clean[[x]] == 1L, na.rm = TRUE)))
+  cat("\n=== Expected output: EXT_SOURCE missing flag sums (test) ===\n")
+  print(sapply(missing_flag_cols, function(x) sum(test_clean[[x]] == 1L, na.rm = TRUE)))
+  cat("\n")
+}
+
+cat("\n=== Expected output: dropped columns count (from TRAIN fit) ===\n")
+cat("Columns dropped:", length(prep$drop_cols), "\n")
+
+cat("\n=== Expected output: sample of engineered columns (train) ===\n")
+print(
+  head(
+    train_clean %>%
+      select(any_of(c("DAYS_EMPLOYED","FLAG_DAYS_EMPLOYED_ANOM",
+                      "EXT_SOURCE_1","EXT_SOURCE_1_MISSING",
+                      "EXT_SOURCE_2","EXT_SOURCE_2_MISSING",
+                      "EXT_SOURCE_3","EXT_SOURCE_3_MISSING",
+                      "AMT_INCOME_TOTAL","FLAG_INCOME_NONPOS",
+                      "AMT_CREDIT","FLAG_CREDIT_NONPOS"))),
+    5
+  )
+)
+
+```
+
+
+### Task 2
+```{r }
+# Fit step (TRAIN ONLY)
+# - for bins / cutpoints
+fit_app_features <- function(train_df) {
+  stopifnot(is.data.frame(train_df))
+  
+  # Age bins (years) — based on EDA distribution
+  age_years <- abs(train_df$DAYS_BIRTH) / 365.25
+  age_bins <- quantile(age_years, probs = c(0, .25, .5, .75, 1), na.rm = TRUE)
+
+  # Employment duration bins (years)
+  emp_years <- abs(train_df$DAYS_EMPLOYED) / 365.25
+  emp_bins <- quantile(emp_years, probs = c(0, .25, .5, .75, 1), na.rm = TRUE)
+
+  list(
+    age_bins = age_bins,
+    emp_bins = emp_bins
+  )
+}
+
+# Transform step (TRAIN / TEST)
+transform_app_features <- function(df, prep) {
+  stopifnot(is.data.frame(df))
+  stopifnot(is.list(prep))
+  
+  out <- df %>%
+    # 1) Demographic transformations
+    mutate(
+      AGE_YEARS = abs(DAYS_BIRTH) / 365.25,
+      EMPLOYED_YEARS = abs(DAYS_EMPLOYED) / 365.25
+    ) %>%
+    
+    # 2) Financial ratios
+    mutate(
+      CREDIT_TO_INCOME = AMT_CREDIT / AMT_INCOME_TOTAL,
+      ANNUITY_TO_INCOME = AMT_ANNUITY / AMT_INCOME_TOTAL,
+      CREDIT_TO_GOODS = AMT_CREDIT / AMT_GOODS_PRICE,
+      ANNUITY_TO_CREDIT = AMT_ANNUITY / AMT_CREDIT,
+      INCOME_PER_PERSON = AMT_INCOME_TOTAL / CNT_FAM_MEMBERS,
+      CREDIT_TO_AGE = AMT_CREDIT / AGE_YEARS
+    ) %>%
+    
+    # 3) Missing data indicators (predictive by design)
+    mutate(
+      FLAG_ANNUITY_MISSING = ifelse(is.na(AMT_ANNUITY), 1L, 0L),
+      FLAG_GOODS_PRICE_MISSING = ifelse(is.na(AMT_GOODS_PRICE), 1L, 0L),
+      FLAG_EMPLOYED_YEARS_MISSING = ifelse(is.na(EMPLOYED_YEARS), 1L, 0L)
+    ) %>%
+
+    # 4) Binned variables (using TRAIN cutpoints)
+    mutate(
+      AGE_BIN = cut(
+        AGE_YEARS,
+        breaks = prep$age_bins,
+        include.lowest = TRUE,
+        labels = FALSE
+      ),
+      EMPLOYED_YEARS_BIN = cut(
+        EMPLOYED_YEARS,
+        breaks = prep$emp_bins,
+        include.lowest = TRUE,
+        labels = FALSE
+      )
+    ) %>%
+  
+    # 5) Interaction terms
+    mutate(
+      CREDIT_INCOME_X_EMPLOYED = CREDIT_TO_INCOME * EMPLOYED_YEARS,
+      AGE_X_EMPLOYED = AGE_YEARS * EMPLOYED_YEARS
+    )
+
+  out
+}
+
+# Apply Task 2 features
+feat_prep <- fit_app_features(train_clean)
+
+train_feat <- transform_app_features(train_clean, feat_prep)
+test_feat  <- transform_app_features(test_clean,  feat_prep)
+
+# Expected outputs
+cat("=== Expected output: feature check ===\n")
+print(
+  head(
+    train_feat %>%
+      select(
+        AGE_YEARS, EMPLOYED_YEARS,
+        CREDIT_TO_INCOME, ANNUITY_TO_INCOME, CREDIT_TO_GOODS,
+        INCOME_PER_PERSON, CREDIT_TO_AGE,
+        FLAG_ANNUITY_MISSING, FLAG_GOODS_PRICE_MISSING,
+        AGE_BIN, EMPLOYED_YEARS_BIN,
+        CREDIT_INCOME_X_EMPLOYED, AGE_X_EMPLOYED
+      ),
+    5
+  )
+)
+
+cat("\n=== Expected output: dimensions ===\n")
+cat("Train features:", nrow(train_feat), "rows x", ncol(train_feat), "cols\n")
+cat("Test  features:", nrow(test_feat),  "rows x", ncol(test_feat),  "cols\n")
+
+
+```
+
+### Task 3
+```{r}
+# -----------------------------
+# 1) bureau_balance.csv -> SK_ID_BUREAU
+# -----------------------------
+bureau_balance <- read_csv("bureau_balance.csv", show_col_types = FALSE)
+
+bb_agg <- bureau_balance %>%
+  mutate(
+    FLAG_DPD_ANY    = ifelse(STATUS %in% c("1","2","3","4","5"), 1L, 0L),
+    FLAG_DPD_SEVERE = ifelse(STATUS %in% c("3","4","5"), 1L, 0L)
+  ) %>%
+  group_by(SK_ID_BUREAU) %>%
+  summarise(
+    BB_MONTHS_COUNT    = n(),
+    BB_DPD_ANY_RATE    = mean(FLAG_DPD_ANY, na.rm = TRUE),
+    BB_DPD_SEVERE_RATE = mean(FLAG_DPD_SEVERE, na.rm = TRUE),
+
+    BB_HAS_ANY_DPD =
+      ifelse(
+        all(is.na(FLAG_DPD_ANY)),
+        0L,
+        max(FLAG_DPD_ANY, na.rm = TRUE)
+      ),
+
+    BB_HAS_SEVERE_DPD =
+      ifelse(
+        all(is.na(FLAG_DPD_SEVERE)),
+        0L,
+        max(FLAG_DPD_SEVERE, na.rm = TRUE)
+      ),
+
+    .groups = "drop"
+  )
+
+# -----------------------------
+# 2) bureau.csv (+ bureau_balance) -> SK_ID_CURR
+# -----------------------------
+bureau <- read_csv("bureau.csv", show_col_types = FALSE)
+
+bureau_agg <- bureau %>%
+  left_join(bb_agg, by = "SK_ID_BUREAU") %>%
+  group_by(SK_ID_CURR) %>%
+  summarise(
+    BUREAU_CREDIT_COUNT = n(),
+    BUREAU_ACTIVE_COUNT = sum(CREDIT_ACTIVE == "Active", na.rm = TRUE),
+    BUREAU_CLOSED_COUNT = sum(CREDIT_ACTIVE == "Closed", na.rm = TRUE),
+    BUREAU_OVERDUE_SUM  = sum(AMT_CREDIT_SUM_OVERDUE, na.rm = TRUE),
+    BUREAU_DEBT_SUM     = sum(AMT_CREDIT_SUM_DEBT, na.rm = TRUE),
+    BUREAU_CREDIT_SUM  = sum(AMT_CREDIT_SUM, na.rm = TRUE),
+    BUREAU_DEBT_RATIO  = BUREAU_DEBT_SUM / BUREAU_CREDIT_SUM,
+    BB_DPD_ANY_RATE_MEAN = mean(BB_DPD_ANY_RATE, na.rm = TRUE),
+
+    BB_HAS_ANY_DPD_MAX =
+      ifelse(
+        all(is.na(BB_HAS_ANY_DPD)),
+        0L,
+        max(BB_HAS_ANY_DPD, na.rm = TRUE)
+      ),
+
+    .groups = "drop"
+  )
+
+# -----------------------------
+# 3) previous_application.csv -> SK_ID_CURR
+# -----------------------------
+previous_application <- read_csv("previous_application.csv", show_col_types = FALSE)
+
+prev_agg <- previous_application %>%
+  group_by(SK_ID_CURR) %>%
+  summarise(
+    PREV_APP_COUNT = n(),
+    PREV_APPROVED_COUNT = sum(NAME_CONTRACT_STATUS == "Approved", na.rm = TRUE),
+    PREV_REFUSED_COUNT  = sum(NAME_CONTRACT_STATUS == "Refused",  na.rm = TRUE),
+    PREV_APPROVAL_RATE  = PREV_APPROVED_COUNT / PREV_APP_COUNT,
+    PREV_REFUSAL_RATE   = PREV_REFUSED_COUNT  / PREV_APP_COUNT,
+    .groups = "drop"
+  )
+
+# -----------------------------
+# 4) installments_payments.csv -> SK_ID_CURR
+# -----------------------------
+installments_payments <- read_csv("installments_payments.csv", show_col_types = FALSE)
+
+inst_agg <- installments_payments %>%
+  mutate(
+    LATE_DAYS = DAYS_ENTRY_PAYMENT - DAYS_INSTALMENT,
+    FLAG_LATE = ifelse(LATE_DAYS > 0, 1L, 0L),
+    PAYMENT_RATIO = AMT_PAYMENT / AMT_INSTALMENT
+  ) %>%
+  group_by(SK_ID_CURR) %>%
+  summarise(
+    INST_PAYMENT_COUNT = n(),
+    LATE_PAYMENT_RATE  = mean(FLAG_LATE, na.rm = TRUE),
+    AVG_LATE_DAYS      = mean(pmax(LATE_DAYS, 0), na.rm = TRUE),
+    PAYMENT_RATIO_MEAN = mean(PAYMENT_RATIO, na.rm = TRUE),
+    PAYMENT_RATIO_SD   = sd(PAYMENT_RATIO,   na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# -----------------------------
+# 5) Final applicant-level dataset
+# -----------------------------
+supplementary_agg <- bureau_agg %>%
+  full_join(prev_agg, by = "SK_ID_CURR") %>%
+  full_join(inst_agg, by = "SK_ID_CURR")
+
+# -----------------------------
+# 6) Sanity checks (expected output)
+# -----------------------------
+cat("Rows:", nrow(supplementary_agg), "\n")
+cat("Cols:", ncol(supplementary_agg), "\n")
+
+head(
+  supplementary_agg %>%
+    select(
+      BUREAU_CREDIT_COUNT,
+      BUREAU_DEBT_RATIO,
+      PREV_APP_COUNT,
+      PREV_APPROVAL_RATE,
+      LATE_PAYMENT_RATE,
+      PAYMENT_RATIO_MEAN
+    ),
+  5
+)
+
+```
+
+
+### Task 4
+```{r }
+
+# 1) Load application data
+app_train <- read_csv("application_train.csv", show_col_types = FALSE)
+app_test  <- read_csv("application_test.csv",  show_col_types = FALSE)
+
+# 2) Join supplementary features (LEFT JOIN keeps all applicants in app tables)
+train_with_supp <- app_train %>%
+  left_join(supplementary_agg, by = "SK_ID_CURR")
+
+test_with_supp <- app_test %>%
+  left_join(supplementary_agg, by = "SK_ID_CURR")
+
+# 3) Expected output / sanity checks
+cat("=== Expected output: dimensions ===\n")
+cat("Train (before):", nrow(app_train), "rows x", ncol(app_train), "cols\n")
+cat("Train (after) :", nrow(train_with_supp), "rows x", ncol(train_with_supp), "cols\n")
+cat("Test  (before):", nrow(app_test),  "rows x", ncol(app_test),  "cols\n")
+cat("Test  (after) :", nrow(test_with_supp),  "rows x", ncol(test_with_supp),  "cols\n\n")
+
+cat("=== Expected output: joined feature sample (train) ===\n")
+print(
+  head(
+    train_with_supp %>%
+      select(
+        SK_ID_CURR,
+        TARGET,
+        BUREAU_CREDIT_COUNT,
+        BUREAU_DEBT_RATIO,
+        PREV_APP_COUNT,
+        PREV_APPROVAL_RATE,
+        LATE_PAYMENT_RATE,
+        PAYMENT_RATIO_MEAN
+      ),
+    5
+  )
+)
+
+# Optional: check how many applicants have no supplementary records (NA counts)
+cat("\n=== Expected output: missingness in selected supplementary features (train) ===\n")
+print(
+  sapply(
+    train_with_supp %>%
+      select(BUREAU_CREDIT_COUNT, PREV_APP_COUNT, INST_PAYMENT_COUNT),
+    function(x) sum(is.na(x))
+  )
+)
+
+
+```
+
+
+### Task 5
+```{r}
+# -----------------------------
+# FIT (TRAIN ONLY)
+# -----------------------------
+fit_prep <- function(train_df,
+                     ext_vars = c("EXT_SOURCE_1","EXT_SOURCE_2","EXT_SOURCE_3"),
+                     nzv_threshold = 0.99) {
+  stopifnot(is.data.frame(train_df))
+
+  # EXT_SOURCE vars actually present
+  ext_vars <- intersect(ext_vars, names(train_df))
+
+  # Train-only medians for EXT_SOURCE imputation
+  ext_medians <- sapply(ext_vars, function(v) median(train_df[[v]], na.rm = TRUE))
+
+  # Train-only bins (quantiles) for binned variables
+  age_years <- abs(train_df$DAYS_BIRTH) / 365.25
+  age_bins <- quantile(age_years, probs = c(0, .25, .5, .75, 1), na.rm = TRUE)
+
+  emp_years <- abs(train_df$DAYS_EMPLOYED) / 365.25
+  emp_bins <- quantile(emp_years, probs = c(0, .25, .5, .75, 1), na.rm = TRUE)
+
+  # Zero-variance + near-zero-variance drops (train-only)
+  n_unique <- sapply(train_df, function(x) dplyr::n_distinct(x, na.rm = TRUE))
+  drop_zero_var <- names(n_unique)[n_unique <= 1]
+
+  max_prop <- sapply(train_df, function(x) {
+    tbl <- table(x, useNA = "ifany")
+    as.numeric(max(tbl) / sum(tbl))
+  })
+  drop_nzv <- names(max_prop)[max_prop > nzv_threshold]
+
+  protected <- intersect(c("TARGET", "SK_ID_CURR"), names(train_df))
+  drop_cols <- setdiff(unique(c(drop_zero_var, drop_nzv)), protected)
+
+  # Factor/character levels (train-only) so test uses same levels
+  char_cols <- names(train_df)[sapply(train_df, is.character)]
+  factor_levels <- lapply(char_cols, function(cn) sort(unique(train_df[[cn]])))
+  names(factor_levels) <- char_cols
+
+  list(
+    ext_vars = ext_vars,
+    ext_medians = ext_medians,
+    age_bins = age_bins,
+    emp_bins = emp_bins,
+    drop_cols = drop_cols,
+    factor_levels = factor_levels
+  )
+}
+
+# -----------------------------
+# TRANSFORM (TRAIN or TEST)
+# -----------------------------
+transform_with_prep <- function(df, prep) {
+  stopifnot(is.data.frame(df))
+  stopifnot(is.list(prep))
+
+  out <- df
+
+  # --- Task 1 core fixes (kept deterministic)
+  if ("DAYS_EMPLOYED" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        FLAG_DAYS_EMPLOYED_ANOM = ifelse(DAYS_EMPLOYED == 365243, 1L, 0L),
+        DAYS_EMPLOYED = ifelse(DAYS_EMPLOYED == 365243, NA, DAYS_EMPLOYED)
+      )
+  }
+
+  # EXT_SOURCE missing -> impute with TRAIN medians + missing indicators
+  for (v in prep$ext_vars) {
+    if (v %in% names(out)) {
+      out[[paste0(v, "_MISSING")]] <- ifelse(is.na(out[[v]]), 1L, 0L)
+      out[[v]] <- ifelse(is.na(out[[v]]), prep$ext_medians[[v]], out[[v]])
+    }
+  }
+
+  # Optional “other EDA” numeric sanity flags (kept minimal + deterministic)
+  if ("AMT_INCOME_TOTAL" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        FLAG_INCOME_NONPOS = ifelse(!is.na(AMT_INCOME_TOTAL) & AMT_INCOME_TOTAL <= 0, 1L, 0L),
+        AMT_INCOME_TOTAL = ifelse(!is.na(AMT_INCOME_TOTAL) & AMT_INCOME_TOTAL <= 0, NA, AMT_INCOME_TOTAL)
+      )
+  }
+  if ("AMT_CREDIT" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        FLAG_CREDIT_NONPOS = ifelse(!is.na(AMT_CREDIT) & AMT_CREDIT <= 0, 1L, 0L),
+        AMT_CREDIT = ifelse(!is.na(AMT_CREDIT) & AMT_CREDIT <= 0, NA, AMT_CREDIT)
+      )
+  }
+
+  # --- Task 2 engineered features
+  out <- out %>%
+    mutate(
+      AGE_YEARS = abs(DAYS_BIRTH) / 365.25,
+      EMPLOYED_YEARS = abs(DAYS_EMPLOYED) / 365.25,
+
+      CREDIT_TO_INCOME = AMT_CREDIT / AMT_INCOME_TOTAL,
+      ANNUITY_TO_INCOME = AMT_ANNUITY / AMT_INCOME_TOTAL,
+      CREDIT_TO_GOODS = AMT_CREDIT / AMT_GOODS_PRICE,
+      ANNUITY_TO_CREDIT = AMT_ANNUITY / AMT_CREDIT,
+      INCOME_PER_PERSON = AMT_INCOME_TOTAL / CNT_FAM_MEMBERS,
+      CREDIT_TO_AGE = AMT_CREDIT / AGE_YEARS,
+
+      FLAG_ANNUITY_MISSING = ifelse(is.na(AMT_ANNUITY), 1L, 0L),
+      FLAG_GOODS_PRICE_MISSING = ifelse(is.na(AMT_GOODS_PRICE), 1L, 0L),
+      FLAG_EMPLOYED_YEARS_MISSING = ifelse(is.na(EMPLOYED_YEARS), 1L, 0L),
+
+      AGE_BIN = cut(AGE_YEARS, breaks = prep$age_bins, include.lowest = TRUE, labels = FALSE),
+      EMPLOYED_YEARS_BIN = cut(EMPLOYED_YEARS, breaks = prep$emp_bins, include.lowest = TRUE, labels = FALSE),
+
+      CREDIT_INCOME_X_EMPLOYED = CREDIT_TO_INCOME * EMPLOYED_YEARS,
+      AGE_X_EMPLOYED = AGE_YEARS * EMPLOYED_YEARS
+    )
+
+  # Drop train-selected NZV columns (same list applied to both)
+  drop_now <- intersect(prep$drop_cols, names(out))
+  if (length(drop_now) > 0) out <- out %>% select(-all_of(drop_now))
+
+  # Align character columns to train levels (prevents train/test mismatch)
+  for (cn in names(prep$factor_levels)) {
+    if (cn %in% names(out)) {
+      out[[cn]] <- factor(out[[cn]], levels = prep$factor_levels[[cn]])
+    }
+  }
+
+  out
+}
+
+# -----------------------------
+# FORCE IDENTICAL COLUMNS (except TARGET)
+# -----------------------------
+align_train_test_columns <- function(train_df, test_df, target_col = "TARGET") {
+  train_cols <- setdiff(names(train_df), target_col)
+  test_cols  <- names(test_df)
+
+  # Union of feature columns, but final should match TRAIN as canonical
+  # (TA-friendly: train defines the feature space)
+  feature_cols <- train_cols
+
+  # Add missing columns to test
+  missing_in_test <- setdiff(feature_cols, test_cols)
+  if (length(missing_in_test) > 0) {
+    test_df[missing_in_test] <- NA
+  }
+
+  # Drop extra columns in test that aren’t in train feature set
+  extra_in_test <- setdiff(test_cols, feature_cols)
+  if (length(extra_in_test) > 0) {
+    test_df <- test_df %>% select(-all_of(extra_in_test))
+  }
+
+  # Reorder test columns to match train feature order
+  test_df <- test_df %>% select(all_of(feature_cols))
+
+  # Ensure train has TARGET first (optional) and features after
+  if (target_col %in% names(train_df)) {
+    train_df <- train_df %>% select(all_of(target_col), all_of(feature_cols))
+  } else {
+    train_df <- train_df %>% select(all_of(feature_cols))
+  }
+
+  list(train_aligned = train_df, test_aligned = test_df)
+}
+
+# ============================================================
+# EXAMPLE RUN (with Task 3 joins)
+# ============================================================
+
+# Load application data
+app_train <- read_csv("application_train.csv", show_col_types = FALSE)
+app_test  <- read_csv("application_test.csv",  show_col_types = FALSE)
+
+# Join Task 3 aggregates (must exist: supplementary_agg)
+train_joined <- app_train %>% left_join(supplementary_agg, by = "SK_ID_CURR")
+test_joined  <- app_test  %>% left_join(supplementary_agg, by = "SK_ID_CURR")
+
+# Fit on TRAIN only
+prep <- fit_prep(train_joined)
+
+# Transform both with same prep
+train_final <- transform_with_prep(train_joined, prep)
+test_final  <- transform_with_prep(test_joined,  prep)
+
+# Align columns (identical features; train keeps TARGET)
+aligned <- align_train_test_columns(train_final, test_final, target_col = "TARGET")
+train_final <- aligned$train_aligned
+test_final  <- aligned$test_aligned
+
+# -----------------------------
+# Expected output / checks
+# -----------------------------
+cat("=== Expected output: column consistency checks ===\n")
+cat("Train has TARGET? ", "TARGET" %in% names(train_final), "\n")
+cat("Test has TARGET?  ", "TARGET" %in% names(test_final),  "\n")
+
+same_feature_cols <- identical(setdiff(names(train_final), "TARGET"), names(test_final))
+cat("Identical feature columns (train vs test)? ", same_feature_cols, "\n\n")
+
+cat("Train dims:", nrow(train_final), "x", ncol(train_final), "\n")
+cat("Test  dims:", nrow(test_final),  "x", ncol(test_final),  "\n")
+
+cat("\n=== Expected output: first 5 feature names ===\n")
+print(head(setdiff(names(train_final), "TARGET"), 5))
+
+```
+
+
+
+```{r}
+prep <- fit_prep(train_joined)
+train_final <- transform_with_prep(train_joined, prep)
+test_final  <- transform_with_prep(test_joined,  prep)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
