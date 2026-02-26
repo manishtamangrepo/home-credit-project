@@ -28,4 +28,17 @@ Thumbs.db
 .ipynb_checkpoints
 *.ipynb_checkpoints
 
+# Ignore model files
+models/
+*.rds
+*.RData
+*.rda
+*.pkl
+*.joblib
+
+# Ignore submission files
+submissions/
+*.csv
+
+
 
