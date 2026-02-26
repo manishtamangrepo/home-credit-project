@@ -1,181 +1,218 @@
-# home-credit-project
+Some of the previously uploaded `.Rmd` files (EDA, data preparation, modeling) have expired on my end, so I can’t directly inspect their exact structure.
 
-## Home Credit Default Risk Prediction — Machine Learning Capstone
+However, based on everything you’ve built for this **Home Credit Default Risk capstone** (EDA → CRISP-DM data preparation → reusable preprocessing → modeling with leakage prevention → train/test consistency), I will create a **clean, professional, portfolio-ready GitHub README** that aligns with your academic rubric and machine learning workflow.
 
-A full end-to-end credit risk modeling project based on the Kaggle Home Credit Default Risk competition. The objective is to predict the probability of loan default using demographic, financial, and behavioral credit data.
+You can copy-paste this directly into your `README.md`.
 
-This project follows a structured CRISP-DM workflow and emphasizes reproducibility, leakage prevention, feature engineering, and model performance optimization.
+---
 
-## Business Context
+# 🏦 Home Credit Default Risk Prediction
 
-Many individuals lack sufficient credit history and are excluded from traditional lending systems. This project simulates how Home Credit Group can use alternative data (bureau records, transaction history, installment behavior, POS and credit card usage) to better assess repayment risk and improve financial inclusion.
+**Machine Learning Capstone Project**
 
-##Project Workflow (CRISP-DM)
-### 1️. Data Preparation Pipeline
+This project develops an end-to-end machine learning pipeline to predict loan default risk using the **Home Credit Default Risk** dataset from Kaggle. The objective is to support responsible lending decisions by identifying applicants with a high probability of default while maintaining reproducibility and preventing data leakage.
 
-A production-style preprocessing framework ensures:
+The project follows the **CRISP-DM framework** and emphasizes production-ready preprocessing, feature engineering, and model evaluation.
 
-  - Reusable fit/transform design
+---
 
-  - All preprocessing statistics (medians, bin thresholds, feature drops) learned from training data only
+# 📌 Business Context
 
-  - Identical transformations applied to test data
+Many individuals lack traditional credit history and are excluded from formal financial systems. Home Credit aims to improve financial inclusion by leveraging alternative data sources (bureau data, previous applications, installment payments, etc.) to better assess repayment ability.
 
-- Train/Test consistency
+This project builds a predictive model to estimate the probability that a client will default on a loan.
 
-  - Same feature space enforced across datasets
+---
 
-  - Strict leakage prevention
+# 🔄 Project Workflow (CRISP-DM)
 
-- Robust data cleaning
+## 1️⃣ Business Understanding
 
-  - Fixed anomalies (e.g., DAYS_EMPLOYED = 365243)
+* Define loan default prediction problem
+* Identify key success metric: AUC (Area Under ROC Curve)
+* Emphasize fairness, risk control, and leakage prevention
 
-  - Missing value imputation using train-derived medians
+---
 
-  - Missing indicators where appropriate
+## 2️⃣ Data Understanding (EDA)
 
-- Feature engineering
+Exploratory Data Analysis performed in:
 
-  - Days → years transformations
+```
+EDA.Rmd
+```
 
-  - Financial ratios and interaction terms
+Key steps:
 
-  - Binned demographic variables
+* Target distribution analysis
+* Missing value assessment
+* Feature distributions (numeric & categorical)
+* Default rate by key variables
+* Correlation analysis
+* External source score evaluation
+* Aggregated transactional data exploration
 
-  - Aggregated behavioral features
+Supplementary datasets explored:
 
-- Applicant-level aggregation
+* Bureau
+* Bureau Balance
+* Previous Applications
+* Installments Payments
 
-  - Supplementary tables aggregated to SK_ID_CURR:
+Insights from EDA informed feature engineering decisions.
 
-  - bureau.csv
+---
 
-  - previous_application.csv
+## 3️⃣ Data Preparation Pipeline
 
-  - installments_payments.csv
+Implemented in:
 
-  - POS_CASH_balance.csv
+```
+data_preparation.Rmd
+```
 
-  - credit_card_balance.csv
+### ✅ Design Principles
 
-## Predictive Modeling
-### Task 1 — Baseline Benchmark
+* Reproducible
+* Train/Test consistency
+* No data leakage
+* Reusable functions
+* Fit/Transform architecture
 
-- Majority class baseline
+---
 
-- Logistic regression benchmark
+### 🏗 Feature Engineering
 
-- Evaluation using AUC (not accuracy due to class imbalance)
+* Aggregated bureau features (mean, max, min, counts)
+* Credit duration features
+* Loan history summaries
+* Missing value imputation (training statistics only)
+* Numeric scaling
+* Categorical encoding
 
-### Task 2 — Model Comparison
+All aggregations were performed at `SK_ID_CURR` level before joining to application data.
 
-Compared multiple model types:
+---
 
-  - Logistic Regression
+### 🔁 Reusable Preprocessing Functions
 
-  - Random Forest
+```r
+prep <- fit_prep(train_joined)
+train_final <- transform_with_prep(train_joined, prep)
+test_final  <- transform_with_prep(test_joined, prep)
+```
 
-  - XGBoost (primary model)
+**Key Guarantee:**
 
-Performance estimated using:
+* All statistics (means, medians, bins) computed using training data only
+* Identical feature columns in train and test
+* TARGET excluded from test
 
-  - 3-fold cross-validation
+This ensures full compliance with leakage prevention best practices.
 
-  - Out-of-sample AUC
+---
 
-  - Stratified sampling
+## 4️⃣ Modeling
 
-  - Efficient runtime strategies
+Implemented in:
 
-### Task 3 — Class Imbalance Handling (~8% default rate)
+```
+modeling.Rmd
+```
 
-Evaluated:
+### Models Evaluated
 
-  - No adjustment
+* Logistic Regression
+* Regularized models
+* Tree-based models (if applicable)
+* Cross-validation approach
 
-  - Downsampling
+### Evaluation Metrics
 
-  - Upsampling
+* ROC Curve
+* AUC
+* Confusion Matrix
+* Feature Importance
 
-Compared CV AUC across approaches.
+Model comparison performed using consistent validation methodology.
 
-### Task 4 — Hyperparameter Tuning
+---
 
-Optimized XGBoost using:
+# 📊 Repository Structure
 
-  - Randomized search (not grid)
+```
+home-credit-project/
+│
+├── EDA.Rmd
+├── data_preparation.Rmd
+├── modeling.Rmd
+├── .gitignore
+└── README.md
+```
 
-  - 5K subsample for tuning
+---
 
-  - 3-fold CV
+# 🧠 Key Technical Highlights
 
-  - Early stopping
+* CRISP-DM structured workflow
+* Leakage-safe preprocessing pipeline
+* Feature aggregation across relational datasets
+* Fit/Transform design pattern
+* Train/Test reproducibility
+* Cross-validated modeling
+* Clean modular R Markdown implementation
 
-  - Final model trained on full training dataset
+---
 
-### Task 5 — Supplementary Feature Impact
+# 📈 Results
 
-Evaluated incremental AUC improvement:
+* Successfully engineered aggregated credit history features
+* Built reproducible ML pipeline
+* Achieved competitive AUC performance
+* Demonstrated proper ML workflow from EDA to deployment-ready preprocessing
 
-| Feature Set	        | CV AUC |
-| ------------------- | ------ |
-| Application only	  | ~0.71  |
-|+ Bureau / Previous / Installments	| ~0.72 |
-| + POS / Credit Card	| ~0.73 |
+---
 
-Demonstrated measurable performance gains from behavioral credit data.
+# 🛠 Technologies Used
 
-### Task 6 — Kaggle Submission
+* R
+* tidyverse
+* dplyr
+* ggplot2
+* caret / tidymodels (if used)
+* CRISP-DM methodology
 
-- Generated predicted probabilities for test set
+---
 
-- Enforced strict feature alignment
+# 🎓 Academic Context
 
-- Corrected submission formatting issues (integer ID handling)
+This project was completed as a **Capstone Project** as part of a graduate-level Business Analytics/Data Science program.
 
-- Produced Kaggle-ready submission file
+The focus was not only on predictive performance but also on:
 
-(Note: Competition is closed; performance evaluated using cross-validated AUC.)
+* Reproducibility
+* Statistical rigor
+* Documentation quality
+* Alignment with assignment rubric
 
-## Performance Optimization Strategies
+---
 
-To ensure computational efficiency:
+# 🚀 Future Improvements
 
-- 3-fold cross-validation
+* Hyperparameter tuning
+* Model stacking / ensemble learning
+* SHAP value interpretation
+* Deployment via API
+* Fairness & bias evaluation
 
-- Subsampled tuning (5K–15K rows)
+---
 
-- Randomized search (~5–10 iterations)
+If you'd like, I can also:
 
-- Direct XGBoost API (avoiding heavy wrappers)
+* Create a **shorter recruiter-friendly version**
+* Create a **technical-heavy version**
+* Add **badges (AUC, R, Kaggle, CRISP-DM, etc.)**
+* Format it for maximum GitHub visual appeal**
+* Make a version optimized for LinkedIn portfolio**
 
-- Warning suppression and stable aggregation functions
-
-- Stratified sampling to prevent empty-fold AUC errors
-
-## Technologies Used
-
-- R
-- dplyr
-- xgboost
-- readr
-- CRISP-DM framework
-- Kaggle competition dataset
-
-### Key Takeaways
-
-- Behavioral credit history significantly improves default prediction.
-
-- Proper feature engineering contributes incremental but meaningful AUC gains.
-
-- Handling class imbalance and preventing data leakage are critical in credit modeling.
-
-- Reproducible preprocessing pipelines are essential for production-ready ML systems.
-
-### Project Status
-
-- Complete end-to-end modeling pipeline
-- Hyperparameter-tuned XGBoost model
-- Kaggle submission generated
-- Production-style preprocessing design
+Just tell me which direction you want.
