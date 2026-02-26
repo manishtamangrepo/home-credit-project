@@ -1,14 +1,3 @@
-
-# 🏦 Home Credit Default Risk Prediction
-
-**Machine Learning Capstone Project**
-
-This project develops an end-to-end machine learning pipeline to predict loan default risk using the **Home Credit Default Risk** dataset from Kaggle. The objective is to support responsible lending decisions by identifying applicants with a high probability of default while maintaining reproducibility and preventing data leakage.
-
-The project follows the **CRISP-DM framework** and emphasizes production-ready preprocessing, feature engineering, and model evaluation.
-
----
-
 # 📌 Business Context
 
 Many individuals lack traditional credit history and are excluded from formal financial systems. Home Credit aims to improve financial inclusion by leveraging alternative data sources (bureau data, previous applications, installment payments, etc.) to better assess repayment ability.
