@@ -1,10 +1,3 @@
-Some of the previously uploaded `.Rmd` files (EDA, data preparation, modeling) have expired on my end, so I can’t directly inspect their exact structure.
-
-However, based on everything you’ve built for this **Home Credit Default Risk capstone** (EDA → CRISP-DM data preparation → reusable preprocessing → modeling with leakage prevention → train/test consistency), I will create a **clean, professional, portfolio-ready GitHub README** that aligns with your academic rubric and machine learning workflow.
-
-You can copy-paste this directly into your `README.md`.
-
----
 
 # 🏦 Home Credit Default Risk Prediction
 
