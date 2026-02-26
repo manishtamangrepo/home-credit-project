@@ -207,12 +207,4 @@ The focus was not only on predictive performance but also on:
 
 ---
 
-If you'd like, I can also:
-
-* Create a **shorter recruiter-friendly version**
-* Create a **technical-heavy version**
-* Add **badges (AUC, R, Kaggle, CRISP-DM, etc.)**
-* Format it for maximum GitHub visual appeal**
-* Make a version optimized for LinkedIn portfolio**
-
 Just tell me which direction you want.
