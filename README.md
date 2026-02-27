@@ -14,7 +14,6 @@ This project builds a predictive model to estimate the probability that a client
 * Identify key success metric: AUC (Area Under ROC Curve)
 * Emphasize fairness, risk control, and leakage prevention
 
----
 
 ## 2️⃣ Data Understanding (EDA)
 
@@ -43,7 +42,7 @@ Supplementary datasets explored:
 
 Insights from EDA informed feature engineering decisions.
 
----
+
 
 ## 3️⃣ Data Preparation Pipeline
 
@@ -61,7 +60,7 @@ data_preparation.Rmd
 * Reusable functions
 * Fit/Transform architecture
 
----
+
 
 ### 🏗 Feature Engineering
 
@@ -92,7 +91,7 @@ test_final  <- transform_with_prep(test_joined, prep)
 
 This ensures full compliance with leakage prevention best practices.
 
----
+
 
 ## 4️⃣ Modeling
 
@@ -118,7 +117,7 @@ modeling.Rmd
 
 Model comparison performed using consistent validation methodology.
 
----
+
 
 # 📊 Repository Structure
 
@@ -144,7 +143,6 @@ home-credit-project/
 * Cross-validated modeling
 * Clean modular R Markdown implementation
 
----
 
 # 📈 Results
 
@@ -153,7 +151,7 @@ home-credit-project/
 * Achieved competitive AUC performance
 * Demonstrated proper ML workflow from EDA to deployment-ready preprocessing
 
----
+
 
 # 🛠 Technologies Used
 
@@ -164,9 +162,9 @@ home-credit-project/
 * caret / tidymodels (if used)
 * CRISP-DM methodology
 
----
 
-# 🎓 Academic Context
+
+#  Academic Context
 
 This project was completed as a **Capstone Project** as part of a graduate-level Business Analytics/Data Science program.
 
@@ -177,7 +175,7 @@ The focus was not only on predictive performance but also on:
 * Documentation quality
 * Alignment with assignment rubric
 
----
+
 
 # 🚀 Future Improvements
 
@@ -187,6 +185,4 @@ The focus was not only on predictive performance but also on:
 * Deployment via API
 * Fairness & bias evaluation
 
----
 
-Just tell me which direction you want.
