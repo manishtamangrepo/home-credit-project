@@ -1,4 +1,6 @@
-# 📌 Business Context
+# Home Credit Default Risk 
+
+### 📌 Business Statement
 
 Many individuals lack traditional credit history and are excluded from formal financial systems. Home Credit aims to improve financial inclusion by leveraging alternative data sources (bureau data, previous applications, installment payments, etc.) to better assess repayment ability.
 
@@ -6,16 +8,16 @@ This project builds a predictive model to estimate the probability that a client
 
 ---
 
-# 🔄 Project Workflow (CRISP-DM)
+##Project Workflow (CRISP-DM)
 
-## 1️⃣ Business Understanding
+### 1️⃣ Business Understanding
 
 * Define loan default prediction problem
 * Identify key success metric: AUC (Area Under ROC Curve)
 * Emphasize fairness, risk control, and leakage prevention
 
 
-## 2️⃣ Data Understanding (EDA)
+### 2️⃣ Data Understanding (EDA)
 
 Exploratory Data Analysis performed in:
 
@@ -44,7 +46,7 @@ Insights from EDA informed feature engineering decisions.
 
 
 
-## 3️⃣ Data Preparation Pipeline
+### 3️⃣ Data Preparation Pipeline
 
 Implemented in:
 
