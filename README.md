@@ -119,7 +119,7 @@ Model comparison performed using consistent validation methodology.
 
 
 
-# 📊 Repository Structure
+## Repository Structure
 
 ```
 home-credit-project/
@@ -133,7 +133,7 @@ home-credit-project/
 
 ---
 
-# 🧠 Key Technical Highlights
+## Key Technical Highlights
 
 * CRISP-DM structured workflow
 * Leakage-safe preprocessing pipeline
@@ -144,7 +144,7 @@ home-credit-project/
 * Clean modular R Markdown implementation
 
 
-# 📈 Results
+## Results
 
 * Successfully engineered aggregated credit history features
 * Built reproducible ML pipeline
@@ -153,7 +153,7 @@ home-credit-project/
 
 
 
-# 🛠 Technologies Used
+## Technologies Used
 
 * R
 * tidyverse
@@ -164,7 +164,7 @@ home-credit-project/
 
 
 
-#  Academic Context
+##  Academic Context
 
 This project was completed as a **Capstone Project** as part of a graduate-level Business Analytics/Data Science program.
 
@@ -177,7 +177,7 @@ The focus was not only on predictive performance but also on:
 
 
 
-# 🚀 Future Improvements
+## Future Improvements
 
 * Hyperparameter tuning
 * Model stacking / ensemble learning
